@@ -12,6 +12,71 @@ from os.path import expanduser
 #### TOP-LEVEL CODE FOR GENERATING FAL CENSUSES TO FILE ----------------------------------------------------------------------------------------#####
 
 ## Note: HTP = half-twist partners
+
+
+class Hashabledict(dict):
+    def __hash__(self):
+        return hash((frozenset(self), frozenset(self.itervalues())))
+
+def FALdictionary(num_circles, identify=True, prime_only=False):
+    DT_Codes = list(DTC_enumerate(num_circles, prime_only, True))
+
+    FALdicts = {}
+
+    index=0
+    for i in range(len(DT_Codes)):
+        HTP_class = i
+        for DT in DT_Codes[i]:
+            name = '{}c{}'.format(num_circles, index)
+            M = snappy.DTcodec(list(DT)).link().exterior()
+            volume = M.volume()
+            identify = M.identify()
+            if identify:
+                ids = tuple(N.name() for N in identify)
+            else:
+                ids = None
+            num_cusps = M.num_cusps()
+            num_planar_cusps = num_cusps - num_circles
+
+            FALdict = {'name':name, 'index': index, 'HTP_class':HTP_class, 'total_cusps':num_cusps, 'planar_cusps':num_planar_cusps, 'crossing_circles':num_circles, 'volume':volume, 'census_names':ids, 'DT_code':list(DT), 'snappy_mfld':M}
+
+            FALdicts[name] = Hashabledict(FALdict)
+
+            index += 1
+
+    # now assign isomorphism classes:
+    classes = []
+    names = FALdicts.keys()
+    for name in names:
+        FALdict = FALdicts[name]
+        assigned = False
+        for cl in classes:
+            cl0 = FALdicts[cl[0]]
+            if FALdict['total_cusps'] == cl0['total_cusps']:
+                if int(FALdict['volume']*1000000) == int(cl0['volume']*1000000):
+                    if FALdict['census_names'] == cl0['census_names']:
+                        cl.append(name)
+                        assigned = True
+                        break
+                    if FALdict['snappy_mfld'].is_isometric_to(cl0['snappy_mfld']):
+                        cl.append(name)
+                        assigned = True
+                        break
+        if not assigned:
+            classes.append([name])
+        
+    for i in range(len(classes)):
+        cl = classes[i]
+        for name in cl:
+            old_dict = FALdicts[name]
+            new_dict = dict([(key,old_dict[key]) for key in old_dict if key != 'snappy_mfld'])
+            new_dict['iso_class'] = i
+            FALdicts[name] = Hashabledict(new_dict)
+
+    return FALdicts
+
+
+
 def FALnumerate(num_circles,return_DT_Codes=True,filename=None, identify=False,prime_only=False, group_into_HTP_classes=False, one_per_iso_class=False):
     DT_Codes = DTC_enumerate(num_circles,prime_only,group_into_HTP_classes)
     if not group_into_HTP_classes:
